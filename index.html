@@ -293,7 +293,7 @@ async function analyseer() {
     const batches = [];
     let batch = [];
     let batchSize = 0;
-    const MAX_BATCH = 4 * 1024 * 1024; // 4MB in bytes (base64 ~33% groter)
+   const MAX_BATCH = 2 * 1024 * 1024; // 4MB in bytes (base64 ~33% groter)
 
     for (const doc of docs) {
       const b64size = doc.data.length;
