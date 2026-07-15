@@ -181,7 +181,6 @@
   </div>
 </main>
 <script>
-// PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 let files = [];
@@ -247,7 +246,6 @@ function setFileStatus(i, status, label) {
   el.textContent = label;
 }
 
-// Extraheer tekst uit PDF via PDF.js (geen base64 nodig!)
 async function extractTextFromPdf(file) {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -255,23 +253,9 @@ async function extractTextFromPdf(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const pageText = content.items.map(item => item.str).join(' ');
-    fullText += pageText + '\n\n';
+    fullText += content.items.map(item => item.str).join(' ') + '\n\n';
   }
   return fullText;
-}
-
-async function callClaude(messages, key) {
-  const resp = await fetch('/.netlify/functions/claude', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key },
-    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages })
-  });
-  if (!resp.ok) {
-    const e = await resp.json().catch(() => ({}));
-    throw new Error(e.error?.message || 'API fout ' + resp.status);
-  }
-  return resp.json();
 }
 
 async function analyseer() {
@@ -285,7 +269,6 @@ async function analyseer() {
   document.getElementById('progress').classList.add('visible');
 
   try {
-    // Stap 1: extraheer tekst uit alle PDFs (geen base64, dus geen groottelimiet!)
     setProgress('Tekst extraheren uit PDF\'s...', 5, `${files.length} bestanden worden verwerkt`);
     const texts = [];
 
@@ -293,25 +276,41 @@ async function analyseer() {
       setFileStatus(i, 'reading', 'Lezen...');
       setProgress('Tekst extraheren...', 5 + (i / files.length) * 30, files[i].name);
       const text = await extractTextFromPdf(files[i]);
-      texts.push({ name: files[i].name, text: text.slice(0, 15000) }); // max 15k tekens per doc
+      texts.push({ name: files[i].name, text: text.slice(0, 15000) });
       setFileStatus(i, 'done', 'Klaar');
     }
 
-    // Stap 2: stuur alle tekst als één prompt naar Claude
     setProgress('AI analyseert documenten...', 40, 'Claude leest alle documenten');
 
-    const gecombineerdeTekst = texts.map(t =>
-      `=== ${t.name} ===\n${t.text}`
-    ).join('\n\n---\n\n');
+    const gecombineerdeTekst = texts.map(t => `=== ${t.name} ===\n${t.text}`).join('\n\n---\n\n');
 
     const prompt = `Analyseer deze aanbestedingsdocumenten grondig. Dit zijn de volledige teksten:\n\n${gecombineerdeTekst}\n\nGeef je antwoord ALLEEN als geldig JSON (geen tekst ervoor of erna):\n\n{"titel":"Officiële naam van de aanbesteding","aanbesteder":"Naam opdrachtgever","deadline":"Exacte sluitingsdatum DD-MM-YYYY","waarde":"Exacte contractwaarde of raming","looptijd":"Contractduur incl. verlengingen","procedure":"Type aanbestedingsprocedure","cpv":"CPV-code en omschrijving","kans_score":85,"kans_uitleg":"Concrete uitleg waarom dit past bij een reclame/marketingbureau","samenvatting":"4-6 zinnen: wat zoeken ze, wie is de doelgroep, wat is de kern van de opdracht","vragen":[{"nr":"1","vraag":"Exacte vraag of eis uit het document","hint":"Concrete tip: wat zoeken ze en hoe hoog de lat"}],"checklist":["Exact document of bewijs dat aangeleverd moet worden"],"gunningscriteria":[{"criterium":"Naam","gewicht":"40%","toelichting":"Wat beoordelen ze en hoe"}],"contactpersoon":"Naam en contactgegevens indien vermeld","bijzonderheden":"Overige belangrijke zaken"}\n\nMinimaal 5 vragen en 6 checklist items. Gebruik exacte formuleringen uit de documenten.`;
 
     setProgress('AI analyseert...', 60, 'Vragen, criteria en checklist opstellen');
 
-    const data = await callClaude([{ role: 'user', content: prompt }], key);
+    // Direct naar Anthropic API — werkt vanuit browser op GitHub Pages
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      throw new Error(e.error?.message || 'API fout ' + resp.status);
+    }
 
     setProgress('Resultaten verwerken...', 90, '');
-
+    const data = await resp.json();
     let t = data.content?.[0]?.text || '';
     if (t.includes('```')) t = t.split('```')[1].replace(/^json\n?/, '').trim();
     const a = JSON.parse(t);
@@ -319,7 +318,6 @@ async function analyseer() {
     setProgress('Klaar!', 100, '');
     setTimeout(() => document.getElementById('progress').classList.remove('visible'), 500);
 
-    // Resultaten tonen
     document.getElementById('results').classList.add('visible');
     document.getElementById('res-titel').textContent = a.titel || '—';
     document.getElementById('res-aanbesteder').textContent = a.aanbesteder || '—';
