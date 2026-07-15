@@ -276,7 +276,7 @@ async function analyseer() {
       setFileStatus(i, 'reading', 'Lezen...');
       setProgress('Tekst extraheren...', 5 + (i / files.length) * 30, files[i].name);
       const text = await extractTextFromPdf(files[i]);
-      texts.push({ name: files[i].name, text: text.slice(0, 5000) });
+     texts.push({ name: files[i].name, text: text.slice(0, 5000).replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ').replace(/\\/g, ' ').replace(/"/g, "'") });
       setFileStatus(i, 'done', 'Klaar');
     }
 
