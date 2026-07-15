@@ -72,30 +72,12 @@
   .section-head { padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; gap: 8px; }
   .section-title { font-size: 14px; font-weight: 600; }
   .section-body { padding: 1.25rem; }
-  .summary-text { font-size: 14px; color: var(--gray-700); line-height: 1.7; }
+  .prose { font-size: 14px; color: var(--gray-700); line-height: 1.7; white-space: pre-wrap; }
   .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media(max-width:520px){.meta-grid{grid-template-columns:1fr}}
   .meta-cell { background: var(--gray-50); border-radius: 8px; padding: 10px 12px; }
   .meta-key { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); margin-bottom: 4px; }
   .meta-val { font-size: 14px; font-weight: 500; word-break: break-word; }
-  .question-item { padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
-  .question-item:last-child { border-bottom: none; padding-bottom: 0; }
-  .question-item:first-child { padding-top: 0; }
-  .question-nr { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--blue); margin-bottom: 4px; }
-  .question-text { font-size: 14px; font-weight: 500; margin-bottom: 4px; line-height: 1.5; }
-  .question-hint { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
-  .checklist { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-  .checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--gray-700); line-height: 1.5; }
-  .check-box { width: 18px; height: 18px; border: 2px solid var(--gray-200); border-radius: 4px; flex-shrink: 0; margin-top: 2px; cursor: pointer; transition: all 0.1s; display: flex; align-items: center; justify-content: center; font-size: 11px; }
-  .check-box.checked { background: var(--green); border-color: var(--green); color: white; }
-  .checked-item > span { text-decoration: line-through; color: var(--gray-500); }
-  .criteria-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
-  .criteria-item:last-child { border-bottom: none; padding-bottom: 0; }
-  .criteria-item:first-child { padding-top: 0; }
-  .criteria-left { flex: 1; }
-  .criteria-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
-  .criteria-desc { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
-  .criteria-weight { font-size: 13px; font-weight: 700; background: var(--amber-light); color: var(--amber); padding: 3px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
   .actions { display: flex; gap: 10px; margin-top: 1.5rem; }
   .btn-secondary { flex: 1; padding: 11px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
   .btn-secondary:hover { background: var(--gray-50); }
@@ -156,19 +138,19 @@
     <p class="score-sub" id="score-uitleg"></p>
     <div class="section">
       <div class="section-head"><span>&#128203;</span><span class="section-title">Wat vragen ze precies?</span></div>
-      <div class="section-body"><p class="summary-text" id="res-samenvatting"></p></div>
+      <div class="section-body"><div class="prose" id="res-samenvatting"></div></div>
     </div>
     <div class="section">
       <div class="section-head"><span>&#10067;</span><span class="section-title">Vragen die je moet beantwoorden</span></div>
-      <div class="section-body" id="res-vragen"></div>
+      <div class="section-body"><div class="prose" id="res-vragen"></div></div>
     </div>
     <div class="section">
       <div class="section-head"><span>&#9989;</span><span class="section-title">Aanleverchecklist</span></div>
-      <div class="section-body"><ul class="checklist" id="res-checklist"></ul></div>
+      <div class="section-body"><div class="prose" id="res-checklist"></div></div>
     </div>
     <div class="section">
       <div class="section-head"><span>&#127942;</span><span class="section-title">Gunningscriteria</span></div>
-      <div class="section-body" id="res-criteria"></div>
+      <div class="section-body"><div class="prose" id="res-criteria"></div></div>
     </div>
     <div class="section">
       <div class="section-head"><span>&#8505;</span><span class="section-title">Tenderdetails</span></div>
@@ -182,7 +164,6 @@
 </main>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
 let files = [];
 
 function saveKey() {
@@ -224,7 +205,7 @@ function render() {
     <div class="file-item" id="fi-${i}">
       <span>&#128196;</span>
       <span class="file-name">${f.name}</span>
-      <span class="file-size">${(f.size / 1024).toFixed(0)} KB</span>
+      <span class="file-size">${(f.size/1024).toFixed(0)} KB</span>
       <span class="file-status pending" id="fs-${i}">Wacht</span>
       <button class="file-remove" onclick="rm(${i})">&#215;</button>
     </div>`).join('');
@@ -246,16 +227,24 @@ function setFileStatus(i, status, label) {
   el.textContent = label;
 }
 
+// Reinig tekst zodat er geen JSON-problemen ontstaan
+function reinig(tekst) {
+  return tekst
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // control characters
+    .replace(/\r/g, ' ')
+    .slice(0, 4000); // max 4000 tekens per document
+}
+
 async function extractTextFromPdf(file) {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let fullText = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, 30); i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    fullText += content.items.map(item => item.str).join(' ') + '\n\n';
+    text += content.items.map(item => item.str).join(' ') + '\n';
   }
-  return fullText;
+  return reinig(text);
 }
 
 async function analyseer() {
@@ -269,26 +258,64 @@ async function analyseer() {
   document.getElementById('progress').classList.add('visible');
 
   try {
-    setProgress('Tekst extraheren uit PDF\'s...', 5, `${files.length} bestanden worden verwerkt`);
+    setProgress('PDF tekst extraheren...', 5, `${files.length} bestanden`);
     const texts = [];
-
     for (let i = 0; i < files.length; i++) {
       setFileStatus(i, 'reading', 'Lezen...');
-      setProgress('Tekst extraheren...', 5 + (i / files.length) * 30, files[i].name);
+      setProgress('Extraheren...', 5 + (i / files.length) * 25, files[i].name);
       const text = await extractTextFromPdf(files[i]);
-     texts.push({ name: files[i].name, text: text.slice(0, 5000).replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ').replace(/\\/g, ' ').replace(/"/g, "'") });
+      texts.push(`=== ${files[i].name} ===\n${text}`);
       setFileStatus(i, 'done', 'Klaar');
     }
 
-    setProgress('AI analyseert documenten...', 40, 'Claude leest alle documenten');
+    const gecombineerd = texts.join('\n\n---\n\n');
+    setProgress('AI analyseert...', 35, 'Claude leest de documenten');
 
-    const gecombineerdeTekst = texts.map(t => `=== ${t.name} ===\n${t.text}`).join('\n\n---\n\n');
+    // Stuur als platte tekst, geen JSON vereist van Claude
+    const prompt = `Je bent expert in Nederlandse overheidstenders. Analyseer onderstaande aanbestedingsdocumenten voor een reclame- en marketingbureau.
 
-    const prompt = `Analyseer deze aanbestedingsdocumenten grondig. Dit zijn de volledige teksten:\n\n${gecombineerdeTekst}\n\nGeef je antwoord ALLEEN als geldig JSON (geen tekst ervoor of erna):\n\n{"titel":"Officiële naam van de aanbesteding","aanbesteder":"Naam opdrachtgever","deadline":"Exacte sluitingsdatum DD-MM-YYYY","waarde":"Exacte contractwaarde of raming","looptijd":"Contractduur incl. verlengingen","procedure":"Type aanbestedingsprocedure","cpv":"CPV-code en omschrijving","kans_score":85,"kans_uitleg":"Concrete uitleg waarom dit past bij een reclame/marketingbureau","samenvatting":"4-6 zinnen: wat zoeken ze, wie is de doelgroep, wat is de kern van de opdracht","vragen":[{"nr":"1","vraag":"Exacte vraag of eis uit het document","hint":"Concrete tip: wat zoeken ze en hoe hoog de lat"}],"checklist":["Exact document of bewijs dat aangeleverd moet worden"],"gunningscriteria":[{"criterium":"Naam","gewicht":"40%","toelichting":"Wat beoordelen ze en hoe"}],"contactpersoon":"Naam en contactgegevens indien vermeld","bijzonderheden":"Overige belangrijke zaken"}\n\nMinimaal 5 vragen en 6 checklist items. Gebruik exacte formuleringen uit de documenten.`;
+DOCUMENTEN:
+${gecombineerd}
 
-    setProgress('AI analyseert...', 60, 'Vragen, criteria en checklist opstellen');
+Geef een analyse in dit EXACTE formaat (gebruik deze koppen letterlijk):
 
-    // Direct naar Anthropic API — werkt vanuit browser op GitHub Pages
+TITEL: [naam aanbesteding]
+AANBESTEDER: [naam organisatie]
+DEADLINE: [sluitingsdatum]
+WAARDE: [contractwaarde]
+LOOPTIJD: [contractduur]
+PROCEDURE: [type procedure]
+MATCH_SCORE: [getal 1-100]
+MATCH_UITLEG: [waarom wel/niet geschikt voor reclame/marketingbureau]
+
+SAMENVATTING:
+[4-6 zinnen over wat ze zoeken]
+
+VRAGEN:
+1. [eerste vraag die je moet beantwoorden]
+   Tip: [wat zoeken ze]
+2. [tweede vraag]
+   Tip: [wat zoeken ze]
+3. [derde vraag]
+   Tip: [wat zoeken ze]
+4. [vierde vraag]
+   Tip: [wat zoeken ze]
+5. [vijfde vraag]
+   Tip: [wat zoeken ze]
+
+CHECKLIST:
+- [document 1 dat aangeleverd moet worden]
+- [document 2]
+- [document 3]
+- [document 4]
+- [document 5]
+- [document 6]
+
+GUNNINGSCRITERIA:
+- [criterium 1]: [gewicht] - [toelichting]
+- [criterium 2]: [gewicht] - [toelichting]
+- [criterium 3]: [gewicht] - [toelichting]`;
+
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -299,7 +326,7 @@ async function analyseer() {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-       max_tokens: 8000,
+        max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -309,53 +336,60 @@ async function analyseer() {
       throw new Error(e.error?.message || 'API fout ' + resp.status);
     }
 
-    setProgress('Resultaten verwerken...', 90, '');
+    setProgress('Resultaten verwerken...', 85, '');
     const data = await resp.json();
-    let t = data.content?.[0]?.text || '';
-    if (t.includes('```')) t = t.split('```')[1].replace(/^json\n?/, '').trim();
-// Herstel afgekapte JSON
-if (!t.endsWith('}')) {
-  const lastBrace = t.lastIndexOf('}');
-  if (lastBrace > 0) t = t.slice(0, lastBrace + 1) + '}';
-}
-    const a = JSON.parse(t);
+    const tekst = data.content?.[0]?.text || '';
+
+    // Parse de platte tekst response
+    function extract(key, tekst) {
+      const regex = new RegExp(key + ':\\s*(.+?)(?=\\n[A-Z_]+:|$)', 's');
+      const match = tekst.match(regex);
+      return match ? match[1].trim() : '—';
+    }
+
+    function extractBlok(key, tekst) {
+      const regex = new RegExp(key + ':\\s*\\n([\\s\\S]+?)(?=\\n[A-Z]+:|$)');
+      const match = tekst.match(regex);
+      return match ? match[1].trim() : '—';
+    }
+
+    const titel = extract('TITEL', tekst);
+    const aanbesteder = extract('AANBESTEDER', tekst);
+    const deadline = extract('DEADLINE', tekst);
+    const waarde = extract('WAARDE', tekst);
+    const looptijd = extract('LOOPTIJD', tekst);
+    const procedure = extract('PROCEDURE', tekst);
+    const scoreStr = extract('MATCH_SCORE', tekst);
+    const matchUitleg = extract('MATCH_UITLEG', tekst);
+    const samenvatting = extractBlok('SAMENVATTING', tekst);
+    const vragen = extractBlok('VRAGEN', tekst);
+    const checklist = extractBlok('CHECKLIST', tekst);
+    const criteria = extractBlok('GUNNINGSCRITERIA', tekst);
+    const score = parseInt(scoreStr) || 0;
 
     setProgress('Klaar!', 100, '');
-    setTimeout(() => document.getElementById('progress').classList.remove('visible'), 500);
+    setTimeout(() => document.getElementById('progress').classList.remove('visible'), 400);
 
     document.getElementById('results').classList.add('visible');
-    document.getElementById('res-titel').textContent = a.titel || '—';
-    document.getElementById('res-aanbesteder').textContent = a.aanbesteder || '—';
-    document.getElementById('res-deadline').textContent = a.deadline || '—';
-    document.getElementById('res-waarde').textContent = a.waarde || '—';
-    document.getElementById('res-samenvatting').textContent = a.samenvatting || '—';
-    document.getElementById('score-uitleg').textContent = a.kans_uitleg || '';
+    document.getElementById('res-titel').textContent = titel;
+    document.getElementById('res-aanbesteder').textContent = aanbesteder;
+    document.getElementById('res-deadline').textContent = deadline;
+    document.getElementById('res-waarde').textContent = waarde;
+    document.getElementById('res-samenvatting').textContent = samenvatting;
+    document.getElementById('score-uitleg').textContent = matchUitleg;
+    document.getElementById('res-vragen').textContent = vragen;
+    document.getElementById('res-checklist').textContent = checklist;
+    document.getElementById('res-criteria').textContent = criteria;
 
-    const sc = a.kans_score || 0;
     const sf = document.getElementById('score-fill');
-    sf.style.width = sc + '%';
-    sf.className = 'score-fill ' + (sc >= 70 ? 'high' : sc >= 40 ? 'mid' : 'low');
-    document.getElementById('score-num').textContent = sc + '%';
-
-    document.getElementById('res-vragen').innerHTML = (a.vragen || []).map(v =>
-      `<div class="question-item"><div class="question-nr">Vraag ${v.nr}</div><div class="question-text">${v.vraag}</div><div class="question-hint">&#128161; ${v.hint}</div></div>`
-    ).join('');
-
-    document.getElementById('res-checklist').innerHTML = (a.checklist || []).map((item, i) =>
-      `<li id="cli-${i}"><div class="check-box" id="cb-${i}" onclick="tc(${i})"></div><span>${item}</span></li>`
-    ).join('');
-
-    document.getElementById('res-criteria').innerHTML = (a.gunningscriteria || []).map(c =>
-      `<div class="criteria-item"><div class="criteria-left"><div class="criteria-name">${c.criterium}</div><div class="criteria-desc">${c.toelichting}</div></div><span class="criteria-weight">${c.gewicht}</span></div>`
-    ).join('');
+    sf.style.width = score + '%';
+    sf.className = 'score-fill ' + (score >= 70 ? 'high' : score >= 40 ? 'mid' : 'low');
+    document.getElementById('score-num').textContent = score + '%';
 
     const mi = [
-      { k: 'Type procedure', v: a.procedure },
-      { k: 'Looptijd', v: a.looptijd },
-      { k: 'CPV-code', v: a.cpv },
-      { k: 'Contactpersoon', v: a.contactpersoon },
-      { k: 'Bijzonderheden', v: a.bijzonderheden }
-    ].filter(x => x.v);
+      { k: 'Type procedure', v: procedure },
+      { k: 'Looptijd', v: looptijd },
+    ].filter(x => x.v && x.v !== '—');
     document.getElementById('res-meta').innerHTML = mi.map(x =>
       `<div class="meta-cell"><div class="meta-key">${x.k}</div><div class="meta-val">${x.v}</div></div>`
     ).join('');
@@ -369,14 +403,6 @@ if (!t.endsWith('}')) {
     b.classList.add('visible');
     document.getElementById('analyze-btn').disabled = false;
   }
-}
-
-function tc(i) {
-  const cb = document.getElementById('cb-' + i);
-  const li = document.getElementById('cli-' + i);
-  cb.classList.toggle('checked');
-  cb.textContent = cb.classList.contains('checked') ? '✓' : '';
-  li.classList.toggle('checked-item');
 }
 
 function resetAlles() {
