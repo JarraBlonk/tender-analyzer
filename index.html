@@ -299,7 +299,7 @@ async function analyseer() {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+       max_tokens: 8000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -313,6 +313,11 @@ async function analyseer() {
     const data = await resp.json();
     let t = data.content?.[0]?.text || '';
     if (t.includes('```')) t = t.split('```')[1].replace(/^json\n?/, '').trim();
+// Herstel afgekapte JSON
+if (!t.endsWith('}')) {
+  const lastBrace = t.lastIndexOf('}');
+  if (lastBrace > 0) t = t.slice(0, lastBrace + 1) + '}';
+}
     const a = JSON.parse(t);
 
     setProgress('Klaar!', 100, '');
