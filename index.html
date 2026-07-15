@@ -85,6 +85,8 @@
   .btn-primary-sm:hover { background: var(--gray-700); }
   .error-box { display: none; background: var(--red-light); border: 1px solid #fca5a5; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--red); margin-top: 1rem; }
   .error-box.visible { display: block; }
+  .info-box { display: none; background: var(--amber-light); border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--amber); margin-top: 1rem; }
+  .info-box.visible { display: block; }
   @media print { nav,.upload-zone,.file-list,.btn-analyze,.progress,.actions,.setup-card{display:none!important} body{background:white} .results{display:block!important} }
 </style>
 </head>
@@ -116,6 +118,7 @@
   <div class="file-list" id="file-list"></div>
   <button class="btn-analyze" id="analyze-btn" disabled onclick="analyseer()">Analyseer documenten</button>
   <div class="error-box" id="error-box"></div>
+  <div class="info-box" id="info-box"></div>
   <div class="progress" id="progress">
     <div class="progress-label" id="progress-label">Bezig...</div>
     <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
@@ -165,6 +168,7 @@
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 let files = [];
+let laatsteAanvraag = null; // bewaart payload voor retry na een afgebroken antwoord
 
 function saveKey() {
   const k = document.getElementById('api-key-input').value.trim();
@@ -227,19 +231,21 @@ function setFileStatus(i, status, label) {
   el.textContent = label;
 }
 
-// Reinig tekst zodat er geen JSON-problemen ontstaan
+// Alleen onzichtbare controle-tekens verwijderen — geen lengtebeperking meer.
+// Claude Sonnet 4.6 heeft een contextvenster van 1 miljoen tokens, dus volledige
+// documenten (ook grote offerteaanvragen) kunnen zonder afkappen mee.
 function reinig(tekst) {
   return tekst
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // control characters
-    .replace(/\r/g, ' ')
-    .slice(0, 4000); // max 4000 tekens per document
+    .replace(/\r/g, ' ');
 }
 
 async function extractTextFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   let text = '';
-  for (let i = 1; i <= Math.min(pdf.numPages, 30); i++) {
+  // Geen paginalimiet meer: alle pagina's van elk document worden gelezen.
+  for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
     text += content.items.map(item => item.str).join(' ') + '\n';
@@ -254,6 +260,7 @@ async function analyseer() {
 
   document.getElementById('analyze-btn').disabled = true;
   document.getElementById('error-box').classList.remove('visible');
+  document.getElementById('info-box').classList.remove('visible');
   document.getElementById('results').classList.remove('visible');
   document.getElementById('progress').classList.add('visible');
 
@@ -269,9 +276,8 @@ async function analyseer() {
     }
 
     const gecombineerd = texts.join('\n\n---\n\n');
-    setProgress('AI analyseert...', 35, 'Claude leest de documenten');
+    setProgress('AI analyseert...', 35, 'Claude leest de documenten — dit kan bij veel documenten iets langer duren');
 
-    // Stuur als platte tekst, geen JSON vereist van Claude
     const prompt = `Je bent expert in Nederlandse overheidstenders. Analyseer onderstaande aanbestedingsdocumenten voor een reclame- en marketingbureau.
 
 DOCUMENTEN:
@@ -316,6 +322,11 @@ GUNNINGSCRITERIA:
 - [criterium 2]: [gewicht] - [toelichting]
 - [criterium 3]: [gewicht] - [toelichting]`;
 
+    laatsteAanvraag = prompt;
+
+    // max_tokens fors verhoogd (4.000 -> 16.000). Claude Sonnet 4.6 ondersteunt
+    // tot 128.000 output tokens op de synchrone API, dus dit geeft ruim baan
+    // voor het volledige analyseformat, ook bij veel of grote documenten.
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -326,18 +337,43 @@ GUNNINGSCRITERIA:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 16000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
 
-    if (!resp.ok) {
-      const e = await resp.json().catch(() => ({}));
-      throw new Error(e.error?.message || 'API fout ' + resp.status);
+    setProgress('Resultaten verwerken...', 85, '');
+
+    // Eerst als platte tekst ophalen, dan pas parsen. Zo krijgen we bij een
+    // afgebroken/ongeldige response een duidelijke eigen foutmelding in
+    // plaats van een cryptische "Unterminated string in JSON"-fout.
+    const ruweTekst = await resp.text();
+    let data;
+    try {
+      data = JSON.parse(ruweTekst);
+    } catch (parseError) {
+      throw new Error(
+        'De reactie van de API kwam niet volledig of niet geldig binnen ' +
+        '(mogelijk een haperende verbinding of een browserextensie die het verkeer blokkeert). ' +
+        'Probeer het opnieuw. Technische details: ' + parseError.message
+      );
     }
 
-    setProgress('Resultaten verwerken...', 85, '');
-    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.error?.message || 'API fout ' + resp.status);
+    }
+
+    // Als het antwoord alsnog is afgekapt omdat de output-limiet is bereikt,
+    // laten we dat expliciet weten in plaats van een halve analyse te tonen.
+    if (data.stop_reason === 'max_tokens') {
+      document.getElementById('progress').classList.remove('visible');
+      const infoBox = document.getElementById('info-box');
+      infoBox.textContent = 'Let op: het antwoord van de AI werd afgekapt omdat zelfs de verhoogde outputlimiet (16.000 tokens) werd bereikt. Dit gebeurt alleen bij zeer uitgebreide documentensets. Probeer het opnieuw, eventueel met iets minder documenten tegelijk, of laat het weten zodat de limiet verder verhoogd kan worden.';
+      infoBox.classList.add('visible');
+      document.getElementById('analyze-btn').disabled = false;
+      return;
+    }
+
     const tekst = data.content?.[0]?.text || '';
 
     // Parse de platte tekst response
@@ -411,6 +447,7 @@ function resetAlles() {
   document.getElementById('results').classList.remove('visible');
   document.getElementById('progress').classList.remove('visible');
   document.getElementById('error-box').classList.remove('visible');
+  document.getElementById('info-box').classList.remove('visible');
   document.getElementById('file-input').value = '';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
