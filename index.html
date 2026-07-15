@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tender Analyzer — Unseen Community</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --black: #0f0f0f; --white: #ffffff; --gray-50: #f7f7f6; --gray-100: #ebebea;
+    --gray-200: #d4d4d2; --gray-500: #7a7a78; --gray-700: #3d3d3b;
+    --blue: #1a56db; --blue-light: #e8effd; --green: #166534; --green-light: #dcfce7;
+    --amber: #92400e; --amber-light: #fef3c7; --red: #991b1b; --red-light: #fee2e2;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gray-50); color: var(--black); min-height: 100vh; line-height: 1.6; }
+  nav { background: var(--white); border-bottom: 1px solid var(--gray-100); padding: 0 2rem; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .nav-logo { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+  .nav-logo span { color: var(--gray-500); font-weight: 400; }
+  .nav-badge { font-size: 11px; background: var(--blue-light); color: var(--blue); padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  main { max-width: 780px; margin: 0 auto; padding: 3rem 2rem; }
+  .setup-card { background: var(--white); border: 1px solid var(--gray-100); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .setup-label { font-size: 13px; color: var(--gray-500); white-space: nowrap; }
+  .setup-card input { flex: 1; min-width: 200px; font-size: 13px; padding: 7px 10px; border: 1px solid var(--gray-200); border-radius: 6px; font-family: monospace; outline: none; }
+  .setup-card input:focus { border-color: var(--blue); }
+  .btn-save { font-size: 13px; padding: 7px 14px; background: var(--black); color: var(--white); border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  .btn-save:hover { background: var(--gray-700); }
+  .key-set { font-size: 12px; color: var(--green); }
+  .hero { margin-bottom: 2.5rem; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 0.5rem; }
+  .hero p { font-size: 15px; color: var(--gray-500); max-width: 500px; }
+  .upload-zone { background: var(--white); border: 2px dashed var(--gray-200); border-radius: 12px; padding: 3rem 2rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin-bottom: 1rem; position: relative; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--blue); background: var(--blue-light); }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 32px; margin-bottom: 0.75rem; display: block; }
+  .upload-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .upload-sub { font-size: 13px; color: var(--gray-500); }
+  .file-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 1rem; }
+  .file-item { background: var(--white); border: 1px solid var(--gray-100); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .file-name { flex: 1; color: var(--gray-700); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-size { color: var(--gray-500); font-size: 12px; white-space: nowrap; }
+  .file-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .file-status.pending { background: var(--gray-100); color: var(--gray-500); }
+  .file-status.reading { background: var(--blue-light); color: var(--blue); }
+  .file-status.done { background: var(--green-light); color: var(--green); }
+  .file-remove { background: none; border: none; color: var(--gray-500); cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1; flex-shrink: 0; }
+  .file-remove:hover { color: var(--red); }
+  .btn-analyze { width: 100%; padding: 14px; background: var(--black); color: var(--white); border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .btn-analyze:hover { background: var(--gray-700); }
+  .btn-analyze:disabled { background: var(--gray-200); color: var(--gray-500); cursor: not-allowed; }
+  .progress { display: none; background: var(--white); border: 1px solid var(--gray-100); border-radius: 12px; padding: 1.5rem; margin-top: 1.5rem; }
+  .progress.visible { display: block; }
+  .progress-label { font-size: 13px; color: var(--gray-700); margin-bottom: 10px; font-weight: 500; }
+  .progress-bar-wrap { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .progress-bar { height: 100%; background: var(--blue); border-radius: 3px; transition: width 0.4s ease; }
+  .progress-sub { font-size: 12px; color: var(--gray-500); }
+  .results { display: none; margin-top: 2rem; }
+  .results.visible { display: block; }
+  .result-header { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--gray-100); }
+  .result-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+  .result-meta { font-size: 13px; color: var(--gray-500); display: flex; gap: 16px; flex-wrap: wrap; }
+  .score-row { display: flex; align-items: center; gap: 12px; margin-bottom: 0.5rem; padding: 1rem 1.25rem; background: var(--white); border: 1px solid var(--gray-100); border-radius: 10px; }
+  .score-label { font-size: 13px; color: var(--gray-500); white-space: nowrap; }
+  .score-track { flex: 1; height: 8px; background: var(--gray-100); border-radius: 4px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 4px; transition: width 1s cubic-bezier(0.16,1,0.3,1); }
+  .score-fill.high { background: #22c55e; }
+  .score-fill.mid { background: #f59e0b; }
+  .score-fill.low { background: #ef4444; }
+  .score-num { font-size: 18px; font-weight: 700; min-width: 44px; text-align: right; }
+  .score-sub { font-size: 13px; color: var(--gray-500); margin-bottom: 1.5rem; padding: 0 2px; }
+  .section { background: var(--white); border: 1px solid var(--gray-100); border-radius: 10px; margin-bottom: 1rem; overflow: hidden; }
+  .section-head { padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; gap: 8px; }
+  .section-title { font-size: 14px; font-weight: 600; }
+  .section-body { padding: 1.25rem; }
+  .summary-text { font-size: 14px; color: var(--gray-700); line-height: 1.7; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media(max-width:520px){.meta-grid{grid-template-columns:1fr}}
+  .meta-cell { background: var(--gray-50); border-radius: 8px; padding: 10px 12px; }
+  .meta-key { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); margin-bottom: 4px; }
+  .meta-val { font-size: 14px; font-weight: 500; word-break: break-word; }
+  .question-item { padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
+  .question-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .question-item:first-child { padding-top: 0; }
+  .question-nr { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--blue); margin-bottom: 4px; }
+  .question-text { font-size: 14px; font-weight: 500; margin-bottom: 4px; line-height: 1.5; }
+  .question-hint { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
+  .checklist { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--gray-700); line-height: 1.5; }
+  .check-box { width: 18px; height: 18px; border: 2px solid var(--gray-200); border-radius: 4px; flex-shrink: 0; margin-top: 2px; cursor: pointer; transition: all 0.1s; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+  .check-box.checked { background: var(--green); border-color: var(--green); color: white; }
+  .checked-item > span { text-decoration: line-through; color: var(--gray-500); }
+  .criteria-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
+  .criteria-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .criteria-item:first-child { padding-top: 0; }
+  .criteria-left { flex: 1; }
+  .criteria-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+  .criteria-desc { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
+  .criteria-weight { font-size: 13px; font-weight: 700; background: var(--amber-light); color: var(--amber); padding: 3px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+  .actions { display: flex; gap: 10px; margin-top: 1.5rem; }
+  .btn-secondary { flex: 1; padding: 11px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-secondary:hover { background: var(--gray-50); }
+  .btn-primary-sm { flex: 1; padding: 11px; background: var(--black); border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--white); }
+  .btn-primary-sm:hover { background: var(--gray-700); }
+  .error-box { display: none; background: var(--red-light); border: 1px solid #fca5a5; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--red); margin-top: 1rem; }
+  .error-box.visible { display: block; }
+  @media print { nav,.upload-zone,.file-list,.btn-analyze,.progress,.actions,.setup-card{display:none!important} body{background:white} .results{display:block!important} }
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">Tender Analyzer <span>by Unseen Community</span></div>
+  <span class="nav-badge">AI-powered</span>
+</nav>
+<main>
+  <div class="setup-card" id="setup-card">
+    <span class="setup-label">Anthropic API key</span>
+    <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" />
+    <button class="btn-save" onclick="saveKey()">Opslaan</button>
+  </div>
+  <div class="setup-card" id="key-set-card" style="display:none">
+    <span class="key-set">&#10003; API key ingesteld</span>
+    <button class="btn-save" style="margin-left:auto;background:#f1f1f0;color:#333" onclick="resetKey()">Wijzigen</button>
+  </div>
+  <div class="hero">
+    <h1>Analyseer een tender in seconden</h1>
+    <p>Upload alle aanbestedingsdocumenten als PDF. De AI leest elk document volledig en geeft een complete analyse.</p>
+  </div>
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept=".pdf" multiple onchange="handleFiles(this.files)" />
+    <span class="upload-icon">&#128196;</span>
+    <div class="upload-title">Sleep PDF's hierheen of klik om te uploaden</div>
+    <div class="upload-sub">Meerdere bestanden tegelijk — tekst wordt automatisch geëxtraheerd</div>
+  </div>
+  <div class="file-list" id="file-list"></div>
+  <button class="btn-analyze" id="analyze-btn" disabled onclick="analyseer()">Analyseer documenten</button>
+  <div class="error-box" id="error-box"></div>
+  <div class="progress" id="progress">
+    <div class="progress-label" id="progress-label">Bezig...</div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+    <div class="progress-sub" id="progress-sub"></div>
+  </div>
+  <div class="results" id="results">
+    <div class="result-header">
+      <div class="result-title" id="res-titel">—</div>
+      <div class="result-meta">
+        <span>&#127970; <span id="res-aanbesteder">—</span></span>
+        <span>&#128197; Sluit <span id="res-deadline" style="color:var(--red);font-weight:600">—</span></span>
+        <span>&#128182; <span id="res-waarde">—</span></span>
+      </div>
+    </div>
+    <div class="score-row">
+      <span class="score-label">Match voor jullie bureau</span>
+      <div class="score-track"><div class="score-fill" id="score-fill" style="width:0%"></div></div>
+      <span class="score-num" id="score-num">—</span>
+    </div>
+    <p class="score-sub" id="score-uitleg"></p>
+    <div class="section">
+      <div class="section-head"><span>&#128203;</span><span class="section-title">Wat vragen ze precies?</span></div>
+      <div class="section-body"><p class="summary-text" id="res-samenvatting"></p></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><span>&#10067;</span><span class="section-title">Vragen die je moet beantwoorden</span></div>
+      <div class="section-body" id="res-vragen"></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><span>&#9989;</span><span class="section-title">Aanleverchecklist</span></div>
+      <div class="section-body"><ul class="checklist" id="res-checklist"></ul></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><span>&#127942;</span><span class="section-title">Gunningscriteria</span></div>
+      <div class="section-body" id="res-criteria"></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><span>&#8505;</span><span class="section-title">Tenderdetails</span></div>
+      <div class="section-body"><div class="meta-grid" id="res-meta"></div></div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="window.print()">Opslaan als PDF</button>
+      <button class="btn-primary-sm" onclick="resetAlles()">Nieuwe tender analyseren</button>
+    </div>
+  </div>
+</main>
+<script>
+// PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let files = [];
+
+function saveKey() {
+  const k = document.getElementById('api-key-input').value.trim();
+  if (!k.startsWith('sk-ant-')) { alert('Voer een geldige Anthropic API key in'); return; }
+  localStorage.setItem('ant_key', k);
+  document.getElementById('setup-card').style.display = 'none';
+  document.getElementById('key-set-card').style.display = 'flex';
+}
+function resetKey() {
+  localStorage.removeItem('ant_key');
+  document.getElementById('setup-card').style.display = 'flex';
+  document.getElementById('key-set-card').style.display = 'none';
+  document.getElementById('api-key-input').value = '';
+}
+function getKey() { return localStorage.getItem('ant_key'); }
+
+window.onload = () => {
+  if (getKey()) {
+    document.getElementById('setup-card').style.display = 'none';
+    document.getElementById('key-set-card').style.display = 'flex';
+  }
+  const z = document.getElementById('upload-zone');
+  z.addEventListener('dragover', e => { e.preventDefault(); z.classList.add('dragover'); });
+  z.addEventListener('dragleave', () => z.classList.remove('dragover'));
+  z.addEventListener('drop', e => { e.preventDefault(); z.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+};
+
+function handleFiles(fs) {
+  for (const f of fs) {
+    if (f.type === 'application/pdf' && !files.find(x => x.name === f.name)) files.push(f);
+  }
+  render();
+}
+
+function render() {
+  const l = document.getElementById('file-list');
+  l.innerHTML = files.map((f, i) => `
+    <div class="file-item" id="fi-${i}">
+      <span>&#128196;</span>
+      <span class="file-name">${f.name}</span>
+      <span class="file-size">${(f.size / 1024).toFixed(0)} KB</span>
+      <span class="file-status pending" id="fs-${i}">Wacht</span>
+      <button class="file-remove" onclick="rm(${i})">&#215;</button>
+    </div>`).join('');
+  document.getElementById('analyze-btn').disabled = files.length === 0;
+}
+
+function rm(i) { files.splice(i, 1); render(); }
+
+function setProgress(label, pct, sub) {
+  document.getElementById('progress-label').textContent = label;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-sub').textContent = sub || '';
+}
+
+function setFileStatus(i, status, label) {
+  const el = document.getElementById('fs-' + i);
+  if (!el) return;
+  el.className = 'file-status ' + status;
+  el.textContent = label;
+}
+
+// Extraheer tekst uit PDF via PDF.js (geen base64 nodig!)
+async function extractTextFromPdf(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map(item => item.str).join(' ');
+    fullText += pageText + '\n\n';
+  }
+  return fullText;
+}
+
+async function callClaude(messages, key) {
+  const resp = await fetch('/.netlify/functions/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages })
+  });
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error(e.error?.message || 'API fout ' + resp.status);
+  }
+  return resp.json();
+}
+
+async function analyseer() {
+  const key = getKey();
+  if (!key) { alert('Stel eerst je API key in.'); return; }
+  if (!files.length) return;
+
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('error-box').classList.remove('visible');
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('progress').classList.add('visible');
+
+  try {
+    // Stap 1: extraheer tekst uit alle PDFs (geen base64, dus geen groottelimiet!)
+    setProgress('Tekst extraheren uit PDF\'s...', 5, `${files.length} bestanden worden verwerkt`);
+    const texts = [];
+
+    for (let i = 0; i < files.length; i++) {
+      setFileStatus(i, 'reading', 'Lezen...');
+      setProgress('Tekst extraheren...', 5 + (i / files.length) * 30, files[i].name);
+      const text = await extractTextFromPdf(files[i]);
+      texts.push({ name: files[i].name, text: text.slice(0, 15000) }); // max 15k tekens per doc
+      setFileStatus(i, 'done', 'Klaar');
+    }
+
+    // Stap 2: stuur alle tekst als één prompt naar Claude
+    setProgress('AI analyseert documenten...', 40, 'Claude leest alle documenten');
+
+    const gecombineerdeTekst = texts.map(t =>
+      `=== ${t.name} ===\n${t.text}`
+    ).join('\n\n---\n\n');
+
+    const prompt = `Analyseer deze aanbestedingsdocumenten grondig. Dit zijn de volledige teksten:\n\n${gecombineerdeTekst}\n\nGeef je antwoord ALLEEN als geldig JSON (geen tekst ervoor of erna):\n\n{"titel":"Officiële naam van de aanbesteding","aanbesteder":"Naam opdrachtgever","deadline":"Exacte sluitingsdatum DD-MM-YYYY","waarde":"Exacte contractwaarde of raming","looptijd":"Contractduur incl. verlengingen","procedure":"Type aanbestedingsprocedure","cpv":"CPV-code en omschrijving","kans_score":85,"kans_uitleg":"Concrete uitleg waarom dit past bij een reclame/marketingbureau","samenvatting":"4-6 zinnen: wat zoeken ze, wie is de doelgroep, wat is de kern van de opdracht","vragen":[{"nr":"1","vraag":"Exacte vraag of eis uit het document","hint":"Concrete tip: wat zoeken ze en hoe hoog de lat"}],"checklist":["Exact document of bewijs dat aangeleverd moet worden"],"gunningscriteria":[{"criterium":"Naam","gewicht":"40%","toelichting":"Wat beoordelen ze en hoe"}],"contactpersoon":"Naam en contactgegevens indien vermeld","bijzonderheden":"Overige belangrijke zaken"}\n\nMinimaal 5 vragen en 6 checklist items. Gebruik exacte formuleringen uit de documenten.`;
+
+    setProgress('AI analyseert...', 60, 'Vragen, criteria en checklist opstellen');
+
+    const data = await callClaude([{ role: 'user', content: prompt }], key);
+
+    setProgress('Resultaten verwerken...', 90, '');
+
+    let t = data.content?.[0]?.text || '';
+    if (t.includes('```')) t = t.split('```')[1].replace(/^json\n?/, '').trim();
+    const a = JSON.parse(t);
+
+    setProgress('Klaar!', 100, '');
+    setTimeout(() => document.getElementById('progress').classList.remove('visible'), 500);
+
+    // Resultaten tonen
+    document.getElementById('results').classList.add('visible');
+    document.getElementById('res-titel').textContent = a.titel || '—';
+    document.getElementById('res-aanbesteder').textContent = a.aanbesteder || '—';
+    document.getElementById('res-deadline').textContent = a.deadline || '—';
+    document.getElementById('res-waarde').textContent = a.waarde || '—';
+    document.getElementById('res-samenvatting').textContent = a.samenvatting || '—';
+    document.getElementById('score-uitleg').textContent = a.kans_uitleg || '';
+
+    const sc = a.kans_score || 0;
+    const sf = document.getElementById('score-fill');
+    sf.style.width = sc + '%';
+    sf.className = 'score-fill ' + (sc >= 70 ? 'high' : sc >= 40 ? 'mid' : 'low');
+    document.getElementById('score-num').textContent = sc + '%';
+
+    document.getElementById('res-vragen').innerHTML = (a.vragen || []).map(v =>
+      `<div class="question-item"><div class="question-nr">Vraag ${v.nr}</div><div class="question-text">${v.vraag}</div><div class="question-hint">&#128161; ${v.hint}</div></div>`
+    ).join('');
+
+    document.getElementById('res-checklist').innerHTML = (a.checklist || []).map((item, i) =>
+      `<li id="cli-${i}"><div class="check-box" id="cb-${i}" onclick="tc(${i})"></div><span>${item}</span></li>`
+    ).join('');
+
+    document.getElementById('res-criteria').innerHTML = (a.gunningscriteria || []).map(c =>
+      `<div class="criteria-item"><div class="criteria-left"><div class="criteria-name">${c.criterium}</div><div class="criteria-desc">${c.toelichting}</div></div><span class="criteria-weight">${c.gewicht}</span></div>`
+    ).join('');
+
+    const mi = [
+      { k: 'Type procedure', v: a.procedure },
+      { k: 'Looptijd', v: a.looptijd },
+      { k: 'CPV-code', v: a.cpv },
+      { k: 'Contactpersoon', v: a.contactpersoon },
+      { k: 'Bijzonderheden', v: a.bijzonderheden }
+    ].filter(x => x.v);
+    document.getElementById('res-meta').innerHTML = mi.map(x =>
+      `<div class="meta-cell"><div class="meta-key">${x.k}</div><div class="meta-val">${x.v}</div></div>`
+    ).join('');
+
+    window.scrollTo({ top: document.getElementById('results').offsetTop - 80, behavior: 'smooth' });
+
+  } catch (e) {
+    document.getElementById('progress').classList.remove('visible');
+    const b = document.getElementById('error-box');
+    b.textContent = 'Fout: ' + e.message;
+    b.classList.add('visible');
+    document.getElementById('analyze-btn').disabled = false;
+  }
+}
+
+function tc(i) {
+  const cb = document.getElementById('cb-' + i);
+  const li = document.getElementById('cli-' + i);
+  cb.classList.toggle('checked');
+  cb.textContent = cb.classList.contains('checked') ? '✓' : '';
+  li.classList.toggle('checked-item');
+}
+
+function resetAlles() {
+  files = [];
+  render();
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('progress').classList.remove('visible');
+  document.getElementById('error-box').classList.remove('visible');
+  document.getElementById('file-input').value = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
